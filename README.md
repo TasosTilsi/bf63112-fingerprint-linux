@@ -1,4 +1,4 @@
-# bf63112-linux-setup
+# bf63112-fingerprint-linux
 
 One-shot installer for the **Betterlife BF63112** SPI fingerprint sensor on
 Debian/Ubuntu-family Linux, including getting it working on the graphical login
@@ -12,8 +12,8 @@ automated matcher download with hash pinning, the `fprintd` state-directory fix,
 and opt-in PAM wiring.
 
 ```
-git clone https://github.com/TasosTilsi/bf63112-linux-setup
-cd bf63112-linux-setup
+git clone https://github.com/TasosTilsi/bf63112-fingerprint-linux
+cd bf63112-fingerprint-linux
 ./install.sh
 ```
 
