@@ -1,0 +1,24 @@
+# proprietary vendor material must never be committed
+*.dll
+*.cab
+*.exe
+*.msi
+
+# biometric material
+*.pgm
+*.variant
+*.bit
+
+# local working state
+.deps/
+work/
+artifacts/
+
+# editor/backup noise
+*.orig
+*.bak
+*.bak.*
+
+# python
+__pycache__/
+*.pyc

@@ -1,0 +1,52 @@
+bf63112-linux-setup
+===================
+
+This project is a thin wrapper around:
+
+  dedbin/libfprint-bf63112
+  https://github.com/dedbin/libfprint-bf63112
+  commit 2e6bcf04950e02e25099f4257d042c4617cef6f6 (2026-07-22)
+
+The BF63112 driver, the native SPI capture implementation, the vendor-engine
+ABI documentation, the Wine/bubblewrap isolation design, the system installer,
+the rollback logic, and the standalone verification harness are that project's
+work and are licensed LGPL-2.1. This repository does not reimplement any of it.
+The installer clones that repository at the pinned commit above.
+
+What this repository adds, and claims authorship of:
+
+  - install.sh, the single-entry wrapper that sequences the upstream tools,
+    downloads the OEM matcher from Microsoft Update Catalog, verifies it against
+    a pinned SHA-256, and wires PAM only with explicit consent.
+  - probe-id.py, a read-only SPI register probe for the sensor ID.
+  - tests/check-repo.sh, a repository gate that refuses to pass if a proprietary
+    binary, a vendor package, or biometric material is present.
+  - docs/TROUBLESHOOTING.md, the failure catalogue observed during bring-up.
+
+Modification of upstream files: install.sh relaxes exactly one predicate in
+upstream's tools/bf63112/install-system.sh (the distro identity check), only on
+systems that are not the tested Ubuntu 24.04, only at runtime, with a backup
+kept beside the original. No modified copy of upstream source is redistributed
+by this repository. That modification is licensed LGPL-2.1-or-later, as required
+by the upstream license.
+
+Proprietary component, NOT distributed here:
+
+  BetterlifeEngineAdapter.dll
+  size 2121392 bytes
+  sha256 9f85fbdb17794d33ec021dcbcacf90733e0a055f80dd77cea6e305c96678fdeb
+
+This is Blestech's matcher, shipped inside the OEM Windows driver. It is obtained
+from Microsoft Update Catalog for hardware ID ACPI\BF63112 and remains subject
+to the OEM's license. Redistribution is not permitted, which is why this project
+downloads it on the user's own machine and verifies a pinned hash instead of
+hosting it.
+
+Alternative route with no proprietary code:
+
+  https://github.com/pythontyphon/oxp3-fingerprint-linux
+  https://github.com/pythontyphon/libfprint-bf63112-oxp3
+
+Acknowledgement of the wider ecosystem: libfprint and fprintd (LGPL-2.1),
+and the linux-fingerprint-drivers catalogue, which is how this sensor was
+identified as a Betterlife BF63112 rather than an unsupported unknown.
