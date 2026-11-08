@@ -64,8 +64,9 @@ Default is interactive: it asks before touching any PAM file.
 ## Read this before enabling PAM
 
 - **Password always keeps working.** The PAM lines use `sufficient` with
-  `max-tries=1 timeout=10`, so a failed or slow touch falls through to the
-  password prompt.
+  `max-tries=3 timeout=30`, so a failed or slow touch falls through to the
+  password prompt. Those are the module defaults: a single attempt with a
+  10 second window was observed to give up before a first-login prompt appeared.
 - **Keep a root TTY open** (`Ctrl+Alt+F3`) until you have logged in once. A broken
   PAM file can lock you out of the graphical session.
 - **The login keyring will not unlock on a fingerprint login**, because no

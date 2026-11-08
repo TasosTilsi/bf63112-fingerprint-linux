@@ -25,6 +25,13 @@ readonly MATCHER_SHA256="9f85fbdb17794d33ec021dcbcacf90733e0a055f80dd77cea6e305c
 readonly MATCHER_SIZE="2121392"
 readonly SENSOR_ID="0x5f83"
 
+# PAM line used for both login and sudo. max-tries and timeout are the module
+# defaults: a first login after reboot has been seen to miss the very first
+# fingerprint prompt, and one attempt with a 10 second window gave no second
+# chance. Three attempts with a 30 second window gives the greeter room to
+# re-issue the prompt. Password still works as soon as this fails.
+readonly PAM_LINE="auth sufficient pam_fprintd.so max-tries=3 timeout=30"
+
 readonly WORK_DIR="${BF63112_WORK_DIR:-$HOME/.local/share/bf63112-setup}"
 readonly UPSTREAM_DIR="$WORK_DIR/upstream"
 readonly MATCHER_DIR="$WORK_DIR/matcher"
@@ -315,16 +322,33 @@ Do not enable PAM. Report this at $UPSTREAM_REPO"
 # --- step 11: PAM ---------------------------------------------------------
 pam_insert() {
     local file="$1" line="$2"
-    if sudo grep -qF "$line" "$file"; then
-        info "already present in $file"
+    local existing
+    # grep -c already prints 0 on no match; || true keeps set -e quiet, and the
+    # ${existing:-0} guards against an empty expansion.
+    existing="$(sudo grep -cE '^auth[[:space:]]+sufficient[[:space:]]+pam_fprintd\.so' "$file" 2>/dev/null || true)"
+    existing="${existing:-0}"
+
+    if [[ "$existing" == 1 ]] && sudo grep -qxF "$line" "$file"; then
+        info "already configured in $file"
         return 0
     fi
+
     sudo cp "$file" "$file.bak.$(date +%Y%m%dT%H%M%S)"
-    sudo sed -i "0,/^@include common-auth/{s|^@include common-auth|$line\n@include common-auth|}" "$file"
-    if ! sudo grep -qF "$line" "$file"; then
-        die "failed to add the PAM line to $file. Restore from the .bak file beside it."
+
+    if [[ "$existing" -ge 1 ]]; then
+        # Upgrade in place so a re-run with different options replaces the line
+        # instead of stacking a second one.
+        sudo sed -i -E "s|^auth[[:space:]]+sufficient[[:space:]]+pam_fprintd\.so.*$|$line|" "$file"
+        info "updated the existing fingerprint line in $file"
+    else
+        sudo sed -i "0,/^@include common-auth/{s|^@include common-auth|$line\n@include common-auth|}" "$file"
+        info "added to $file"
     fi
-    info "added to $file; backup kept next to it"
+
+    if ! sudo grep -qxF "$line" "$file"; then
+        die "failed to configure $file. Restore from the .bak file beside it."
+    fi
+    info "backup kept next to $file"
 }
 
 step_pam() {
@@ -344,12 +368,12 @@ step_pam() {
 
     if [[ "$want_sudo" == yes ]]; then
         say "Wiring fingerprint into sudo"
-        pam_insert /etc/pam.d/sudo "auth sufficient pam_fprintd.so max-tries=1 timeout=10"
+        pam_insert /etc/pam.d/sudo "$PAM_LINE"
         info "undo with: sudo cp /etc/pam.d/sudo.bak.<timestamp> /etc/pam.d/sudo"
     fi
     if [[ "$want_login" == yes ]]; then
         say "Wiring fingerprint into the login screen"
-        pam_insert /etc/pam.d/lightdm "auth sufficient pam_fprintd.so max-tries=1 timeout=10"
+        pam_insert /etc/pam.d/lightdm "$PAM_LINE"
         info "undo with: sudo cp /etc/pam.d/lightdm.bak.<timestamp> /etc/pam.d/lightdm"
         info "keep a root TTY (Ctrl+Alt+F3) until you have logged in once"
     fi

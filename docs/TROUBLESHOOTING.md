@@ -106,6 +106,51 @@ to recognise it. Upstream `elementary/greeter` implements this in
 `src/FPrintUtils.vala` and `src/MainWindow.vala`; rebuilding the greeter from
 upstream source is the fix.
 
+### No prompt on the FIRST login after a reboot, but it works after logout
+
+**Status: intermittent, root cause NOT established.** Observed once on
+2026-11-08 (boot 22:27: failed, password used; boot 23:03: worked, matched in 2 s).
+
+What was ruled out, with evidence from that machine:
+
+- **Device not ready.** udev wrote `driver_override` and bound spidev at
+  `22:27:07.798`, before lightdm started at `22:27:09`. Ready in time.
+- **PAM misconfiguration.** The boot attempt did reach fprintd
+  (`dbus: Activated net.reactivated.Fprint, requested by lightdm --session-child`).
+  `max-tries` and `timeout` parse correctly; the module logged
+  `Waiting for 9 seconds (9996835 usecs)` for `timeout=10`.
+- **Cold Wine start.** After `echo 3 > /proc/sys/vm/drop_caches` a verify still
+  completed in 2.3 s, with `Pinned Betterlife fingerprint engine is ready`,
+  `VerifyStart` and `Sensor ID 0x5f83` all in the same second.
+- **A hanging verification.** fprintd is lazy about stopping: a successful boot
+  kept it resident 43 s *after* login, so a long fprintd lifetime is not
+  evidence of a long authentication.
+
+Leading hypothesis, unproven: the greeter starts authentication roughly one
+second after its own process starts, and the first PAM messages can arrive
+before the login card is ready to display them, so no prompt is ever drawn.
+That fits the failure appearing only on the first greeter after boot and never
+after a logout.
+
+Mitigation applied (not a fix): the PAM line now uses `max-tries=3 timeout=30`,
+the module defaults, so a late or dropped first prompt still leaves further
+attempts inside the same conversation. A single attempt with a 10 s window had
+no second chance.
+
+To actually diagnose a recurrence, the fprintd drop-in
+`/etc/systemd/system/fprintd.service.d/debug.conf` with
+`Environment=G_MESSAGES_DEBUG=all` must be installed *before* the failing boot,
+and then:
+
+```
+journalctl -b -u fprintd --no-pager | head -60
+journalctl -b --no-pager | grep -iE 'pam_fprintd|lightdm\[|reactivated.Fprint'
+```
+
+Note that enabling that logging perturbs boot timing, which may itself hide a
+race. If the failure only reproduces without logging, that is the race
+confirming itself.
+
 ## After typing a fingerprint at login, apps ask for my password
 
 Expected. A finger never hands PAM your password, so the login keyring stays
